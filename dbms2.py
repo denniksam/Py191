@@ -104,6 +104,10 @@ class UserDAO :
         finally :
             cursor.close()
         return
+# Д.З. Реализовать метод is_login_free( login : str ), учесть тот факт,
+# что за удаленными пользователями логины все равно закреплены и есть занятыми (можно делегировать get_user())
+# Реализовать метод auth_user(login:str, passw:str) -> User | None
+
     # задание: добавить пар-р ignore_deleted = True, учесть его
     def get_user( self, id = None, login = None ) -> User | None :
         sql = "SELECT u.* FROM Users u WHERE "
