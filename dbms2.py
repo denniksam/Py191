@@ -8,30 +8,51 @@ import uuid
 class User :
     def __init__( self, row = None ) -> None :
         if row == None :
-            self.id         = ''
-            self.login      = '' 
-            self.passw      = '' 
-            self.name       = '' 
-            self.salt       = '' 
-            self.avatar     = '' 
-            self.email      = '' 
-            self.email_code = '' 
-            self.email_code_attempts = '' 
+            self.id         = None
+            self.login      = None 
+            self.passw      = None 
+            self.name       = None 
+            self.salt       = None 
+            self.avatar     = None 
+            self.email      = None 
+            self.email_code = None 
+            self.email_code_attempts = None
+            self.del_dt     = None
+        elif isinstance( row, tuple ) :
+            self.id         = row[0]
+            self.login      = row[1]
+            self.passw      = row[2] 
+            self.name       = row[3]
+            self.salt       = row[4]
+            self.avatar     = row[5]
+            self.email      = row[6]
+            self.email_code = row[7]
+            self.email_code_attempts = row[8]
+            self.del_dt     = row[9]
+        elif isinstance( row, dict ) :
+            self.id         = row["id"]
+            self.login      = row["login"]
+            self.passw      = row["pass"] 
+            self.name       = row["name"]
+            self.salt       = row["salt"]
+            self.avatar     = row["avatar"]
+            self.email      = row["email"]
+            self.email_code = row["email_code"]
+            self.email_code_attempts = row["email_code_attempts"]
+            self.del_dt     = row["del_dt"]
         else :
-            if row :
-                self.id         = row[0]
-                self.login      = row[1]
-                self.passw      = row[2] 
-                self.name       = row[3]
-                self.salt       = row[4]
-                self.avatar     = row[5]
-                self.email      = row[6]
-                self.email_code = row[7]
-                self.email_code_attempts = row[8]
+            raise ValueError( "row format unsupported" )
+
+    def __str__( self ) -> str :
+        return str( self.__dict__ )
+
+    # def __repr__(self) -> str:
+    #     return self.__str__()
+    __repr__ = __str__
 
 
 class UserDAO :
-    def __init__( self, db: mysql.connector.MySQLConnection ) -> None:
+    def __init__( self, db: mysql.connector.MySQLConnection ) -> None :
         self.db = db
 
     def add_user( self, user : User ) -> bool :
@@ -68,10 +89,13 @@ class UserDAO :
         finally :
             cursor.close()
 
-    def get_users( self ) -> tuple | None :
+    def get_users( self, ignore_deleted = True ) -> tuple | None :
+        sql = "SELECT * FROM users"
+        if ignore_deleted :
+            sql += " WHERE del_dt IS NULL"
         try :
-            cursor = self.db.cursor()
-            cursor.execute( "SELECT * FROM users" ) 
+            cursor = self.db.cursor( dictionary = True )
+            cursor.execute( sql ) 
         except mysql.connector.Error as err :
             print( 'get_users:', err ) 
             return None
@@ -80,17 +104,79 @@ class UserDAO :
         finally :
             cursor.close()
         return
-# Д.З. Реализовать вывод списка пользователей в удобном для просмотра виде
-# вместо (<__main__.User object at 0x00000158D263D910>, <__main__.User object at 0x00000158D261F810>)
+    # задание: добавить пар-р ignore_deleted = True, учесть его
+    def get_user( self, id = None, login = None ) -> User | None :
+        sql = "SELECT u.* FROM Users u WHERE "
+        params = []
+        if id :
+            sql += "u.id = %s "
+            params.append( id )
+        if login :
+            sql += ( "AND " if id else "" ) + "u.login = %s"
+            params.append( login )
+        if len( params ) == 0 :
+            return None
 
+        try :
+            cursor = self.db.cursor( dictionary = True )
+            cursor.execute( sql, params )
+            row = cursor.fetchone()
+            if row :
+                return User( row )
+        except mysql.connector.Error as err :
+            print( 'get_user:', err )
+        finally :
+            try : cursor.close()
+            except : pass
+        return None
+
+    def update( self, user : User ) -> bool :
+        ''' Обновление данных о пользователе. user.id используется как ключ, остальные поля
+            обновляют значения в БД. !!! Если меняется пароль получить хеш нужно до вызова метода'''
+        # задание: подготовить текст запроса в виде            остальные поля user
+        # UPDATE users u SET u.`login`=%(login)s, u.`pass`=%(passw)s, ... WHERE u.`id`=%(id)s
+        sql = 'UPDATE users u SET ' + \
+            ','.join( f"u.`{x.replace('passw','pass')}`=%({x})s" for x in user.__dict__.keys() if x != 'id' ) + \
+            ' WHERE u.`id`=%(id)s'
+        # print( sql )
+        try :
+            cursor = self.db.cursor()
+            cursor.execute( sql, user.__dict__ )  # подстановка значений именованных параметров
+            self.db.commit()
+        except mysql.connector.Error as err :
+            print( err ) 
+            return False
+        else :
+            return True
+        finally :
+            try : cursor.close()
+            except : pass
+
+    def delete( self, user : User ) -> bool :
+        '''Удаление пользователя - это не удаление записи из БД, это установка поля del_dt'''
+        if not user : return False
+        try :
+            cursor = self.db.cursor()
+            cursor.execute( "UPDATE users u SET u.del_dt = CURRENT_TIMESTAMP WHERE u.id = %s", (user.id,) ) 
+            self.db.commit()
+        except mysql.connector.Error as err :
+            print( err ) 
+            return False
+        else :
+            return True
+        finally :
+            try : cursor.close()
+            except : pass
+
+    
 
 def main( db: mysql.connector.MySQLConnection ) -> None :
     # user = User()
-    # user.login = "admin"
+    # user.login = "moder"
     # user.passw = "123"
-    # user.name = "Root Administrator"
+    # user.name = "Post Moderator"
     # user.avatar = None
-    # user.email = "admin@ukr.net"
+    # user.email = "moder@ukr.net"
     # user.login = "user"
     # user.passw = "123"
     # user.name = "Experienced User"
@@ -100,6 +186,15 @@ def main( db: mysql.connector.MySQLConnection ) -> None :
     userDao = UserDAO( db )
     # print( userDao.add_user( user ) )
     print( userDao.get_users() )
+    print( userDao.get_users( ignore_deleted=False ) )
+    # print( userDao.get_user( id = '953daa4e-6df3-4d5c-8c4a-75bca62bb151' ) )
+    # print( userDao.get_user( id = '!953daa4e-6df3-4d5c-8c4a-75bca62bb151' ) )
+    # print( userDao.get_user( login = 'admin' ) )
+    # print( userDao.get_user( login = 'nobody' ) )
+    # user = userDao.get_user( login = 'moder' ) ; print( user ) 
+    # print( userDao.delete( user ) )
+    # user.email = "admin@gmail.com"
+    # print( userDao.update( user ) )
 
 
 if __name__ == "__main__" :
@@ -139,7 +234,9 @@ CREATE TABLE `users` (
   `email_code_attempts` int(11)     DEFAULT 0      COMMENT 'Count of invalid E-mail confirmations',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
-
+Традиционно для удаления сущностей в таблицах закладывают доп. поля типа is_deleted (bool) либо
+del_dt(datetime) момент удаления. В более сложных системах ведется журнал удалений: кто-что-когда-коммент
+ALTER TABLE users ADD COLUMN IF NOT EXISTS del_dt DATETIME DEFAULT NULL ;
 
 Python              ~socket              DBMS
 db.cursor() <-------------------------->
