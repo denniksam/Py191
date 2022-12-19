@@ -12,6 +12,7 @@ print( f"""<!doctype html />
     <title>Py-191</title>
 </head>
 <body>
+{__name__}
     <h1>Hello CGI World!</h1>
     {envs}
 </body>

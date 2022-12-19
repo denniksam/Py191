@@ -1,2 +1,2 @@
 RewriteEngine on
-RewriteRule  .*  request.py [QSA]
+RewriteRule  request  request.py [QSA]
