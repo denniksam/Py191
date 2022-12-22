@@ -27,11 +27,39 @@ document.addEventListener('DOMContentLoaded', () => {
     itemsButton.addEventListener('click', itemsButtonClick ) ;
 });
 function itemsButtonClick(e) {
-// Д.З. По нажатию на items-button реализовать отправку запроса к /items
-// Указать заголовок Authorization: Bearer и подставить полученый при 
-// авторизации токен
-// *изначально кнопка неактивна, активируется в случае успешной авторизации (получении токена)
+    var access_token = window.sessionStorage.getItem( "access_token" ) ;
+    if( ! access_token ) {
+        alert( "Сначала авторизуйтесь" ) ;
+        return ;
+    }
+    fetch( "/items", {
+        method: "GET",
+        headers: {
+            "Authorization": "Bearer " + access_token
+        }
+    }).then( async r => {
+        if( r.status == 401 ) {
+            alert( await r.text() ) ;
+            // проверка токена отклонена - удалить токен из хранилища
+        }
+        else if( r.status == 200 ) {
+            out.innerText = await r.text() ;
+        }
+        else {
+            console.log( r ) ;
+        }
+    } ) ;
 }
+/* Задания:
+1. Проверять срок действия токена при его успешном получении
+2. При генерировании токена проверять есть ли активный токен для данного пользователя,
+    если есть, то не создавать новый, вернуть старый
+    * можно создавать новый токен если старый активный, но осталось менее 10 минут
+3. При загрузке HTML-страницы (или обновлении) проверять наличие токена в sessionStorage
+    если он есть, то не выводить блок авторизации. При негативных ответах сервера,
+    проверящего токен, удалять токен из sessionStorage
+    * контролировать (выводить таймер обратного отсчета) оставшегося времени авторизации
+*/
 function loginButtonClick(e) {
     const userLogin = document.querySelector("#user-login");
     if( ! userLogin ) throw "loginButtonClick: #user-login not found" ; 
@@ -49,8 +77,10 @@ function loginButtonClick(e) {
             alert( "Логин или пароль неправильные" )
         }
         else {
-            r.text().then( t => {
-                console.log( t ) ;
+            r.json().then( j => {
+                console.log( j ) ;
+                // сохраняем полученный токен
+                window.sessionStorage.setItem( "access_token", j.access_token ) ;
             });
         }
     } ) ;

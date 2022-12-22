@@ -25,7 +25,7 @@ if not auth_header :
 
 # Проверяем схему авторизации Basic
 if not auth_header.startswith( 'Basic' ) :
-    send401( "Authorization header required" )
+    send401( "Basic Authorization header required" )
     exit()
 
 # декодируем переданную строку
@@ -55,9 +55,16 @@ except :
     send401( "Internal Error" )
     exit()
 
+# получаем пользователя по логину и паролю
 user = dao.UserDAO(con).auth_user( user_login, user_password )
 if not user :
     send401( "Credentials rejected" )
+    exit()
+
+# генерируем токен для пользователя
+access_token = dao.AccessTokenDAO( con ).create( user )
+if not access_token :
+    send401( "Token creation error" )
     exit()
 
 print( "Status: 200 OK" )
@@ -66,11 +73,29 @@ print( "Cache-Control: no-store" )
 print( "Pragma: no-cache" )
 print()
 print( f'''{{
-    "access_token": "{user.id}",
+    "access_token": "{access_token.token}",
     "token_type": "Bearer",
-    "expires_in": 3600
+    "expires_in": "{access_token.expires}"
 }}''', end='' )
 
+
+'''
+Токены - данные, позволяющие идентифицировать подключение. Чаще всего это строки, бывают
+бинарные данные, бывают JWT (JSON данные).
+Для ведения токенов организуются отдельные таблицы (БД). Токен принадлежит определенному
+пользователю и имеет ограниченный срок действия:
+ от пересоздания для каждого запроса
+ до практически бессрочного интервала (год и более)
+Бывает, что различные токены принадлежат одному пользователю но отвечают за различные права
+ (например, github)
+CREATE TABLE access_tokens (
+    token    CHAR(40)  PRIMARY KEY,
+    user_id  CHAR(36)  NOT NULL,
+    expires  DATETIME  NOT NULL,
+
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB, DEFAULT CHARSET=UTF8
+'''
 
 #Д.З. Проверить заголовок Authorization на валидность (наличие разделенных ":" логина и пароля)
 # Схема: пользователь обращается на /auth, передает логин и пароль

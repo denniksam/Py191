@@ -1,3 +1,4 @@
+from   datetime import datetime, timedelta
 import hashlib
 import mysql.connector
 import random
@@ -174,3 +175,65 @@ class UserDAO :
         finally :
             try : cursor.close()
             except : pass
+
+
+class AccessToken :
+    def __init__( self, row = None ) -> None :
+        if row == None :
+            self.token   = None
+            self.user_id = None 
+            self.expires = None 
+        elif isinstance( row, tuple ) or isinstance( row, list ) :
+            self.token   = row[0]
+            self.user_id = row[1] 
+            self.expires = row[2] 
+        elif isinstance( row, dict ) :
+            self.token   = row["token"  ]
+            self.user_id = row["user_id"] 
+            self.expires = row["expires"] 
+
+
+class AccessTokenDAO :
+    def __init__( self, db: mysql.connector.MySQLConnection ) -> None :
+        self.db = db
+
+    def create( self, user: str|User ) -> AccessToken|None :
+        ''' user - user_id only OR User instance object '''
+        user_id = None
+        if isinstance( user, str ) :   # str - user_id only
+            user_id = user
+        elif isinstance( user, User )  :
+            user_id = user.id
+
+        if not user_id : return None
+        access_token = AccessToken()
+        access_token.token   = random.randbytes(20).hex()  # 20 bytes = 40 hex-digits = 160 bit
+        access_token.user_id = user_id
+        access_token.expires = ( datetime.now() + timedelta( days = 1 )  # 1 day from now
+            ).strftime( "%Y-%m-%d %H:%M:%S" ) # SQL-format
+        sql = "INSERT INTO access_tokens VALUES( %(token)s, %(user_id)s, %(expires)s )"
+        try :
+            cursor = self.db.cursor()
+            cursor.execute( sql, access_token.__dict__ )
+            self.db.commit()
+        except :
+            return None
+        else :
+            return access_token
+        finally :
+            try : cursor.close()
+            except : pass
+
+    def get( self, access_token: str ) -> AccessToken|None :
+        sql = "SELECT * FROM access_tokens WHERE token = %s"
+        try :
+            cursor = self.db.cursor( dictionary = True )
+            cursor.execute( sql, ( access_token, ) ) 
+            row = cursor.fetchone()
+            if row : return AccessToken( row )
+        except :
+            pass
+        finally :
+            try : cursor.close()
+            except : pass
+        return None
