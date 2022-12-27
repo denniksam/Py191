@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Py191</title>
+</head>
+<body>
+    <h1>Py 191</h1>
+    <label>Логин:  <input id="user-login"    /></label><br/>
+    <label>Пароль: <input id="user-password" /></label><br/>
+    <input type="button" value="Войти" id="login-button" />
+    <br/>
+    <br/>
+    <input type="button" value="Контент" id="items-button" />
+    <p id="out"></p>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const loginButton = document.querySelector("#login-button");
+    if( ! loginButton ) throw "DOMContentLoaded: #login-button not found" ;
+    loginButton.addEventListener('click', loginButtonClick ) ;
+
+    const itemsButton = document.querySelector("#items-button");
+    if( ! itemsButton ) throw "DOMContentLoaded: #items-button not found" ;
+    itemsButton.addEventListener('click', itemsButtonClick ) ;
+});
+function itemsButtonClick(e) {
+    var access_token = window.sessionStorage.getItem( "access_token" ) ;
+    if( ! access_token ) {
+        alert( "Сначала авторизуйтесь" ) ;
+        return ;
+    }
+    fetch( "/items", {
+        method: "GET",
+        headers: {
+            "Authorization": "Bearer " + access_token
+        }
+    }).then( async r => {
+        if( r.status == 401 ) {
+            alert( await r.text() ) ;
+            // проверка токена отклонена - удалить токен из хранилища
+        }
+        else if( r.status == 200 ) {
+            out.innerText = await r.text() ;
+        }
+        else {
+            console.log( r ) ;
+        }
+    } ) ;
+}
+
+function loginButtonClick(e) {
+    const userLogin = document.querySelector("#user-login");
+    if( ! userLogin ) throw "loginButtonClick: #user-login not found" ; 
+    const userPassword = document.querySelector("#user-password");
+    if( ! userPassword ) throw "loginButtonClick: #user-password not found" ;
+    // проверить поля на пустоту, логин - на допустимые символы
+    const credentials = btoa( userLogin.value + ':' + userPassword.value ) ;
+    fetch( "/auth", {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Basic ' + credentials
+        }
+    }).then( r => {
+        if( r.status != 200 ) {
+            alert( "Логин или пароль неправильные" )
+        }
+        else {
+            r.text().then( j => {
+                console.log( j ) ;
+                // сохраняем полученный токен
+                // window.sessionStorage.setItem( "access_token", j.access_token ) ;
+            });
+        }
+    } ) ;
+
+}
+</script>
+</body>
+</html>
